@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uniswap V3 集中流动性可视化 (独立运行版)</title>
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #3ba0ff;
+            --secondary-color: #6b7280;
+            --bg-color: #ffffff;
+            --card-bg: #f9fafb;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: #111827;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        #root {
+            width: 100%;
+            max-width: 1200px;
+            padding: 2.5rem;
+            box-sizing: border-box;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            width: 100%;
+        }
+
+        .app-header {
+            border-bottom: 2px solid #f3f4f6;
+            padding-bottom: 1.5rem;
+        }
+
+        .app-header h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin: 0;
+            background: linear-gradient(90deg, #111827, #4b5563);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .app-description {
+            color: var(--secondary-color);
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-top: 0.75rem;
+            max-width: 800px;
+        }
+
+        .app-main {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        .sliders-section, .viz-section {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .sliders-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .sliders-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .section-desc {
+            font-size: 0.95rem;
+            color: var(--secondary-color);
+            margin: 0.5rem 0 0 0;
+            line-height: 1.5;
+        }
+
+        .v2-sim-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.65rem 1.25rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .v2-sim-btn:hover { background-color: #2563eb; transform: translateY(-1px); }
+        .v2-sim-btn:active { transform: translateY(0); }
+        .v2-sim-btn.v2-active { background-color: #f59e0b; }
+        .v2-sim-btn.v2-active:hover { background-color: #d97706; }
+
+        /* Sliders Layout */
+        .sliders-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem 3rem;
+        }
+
+        .slider-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .slider-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slider-name {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .slider-control {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .slider-input {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            background: #e5e7eb;
+            border-radius: 999px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .slider-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid currentColor;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.1s ease;
+        }
+
+        .slider-input::-webkit-slider-thumb:hover { transform: scale(1.1); }
+
+        .slider-value {
+            font-family: ui-monospace, monospace;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #111827;
+            width: 32px;
+            text-align: right;
+        }
+
+        .color-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* Visualization Layout */
+        .viz-header {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .viz-title-col h3 {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2.5rem;
+            height: 380px;
+        }
+
+        .chart-wrapper {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 100%;
+            width: 100%;
+        }
+
+        .y-axis-label {
+            position: absolute;
+            top: 0.5rem;
+            left: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #9ca3af;
+        }
+
+        .x-axis-label {
+            position: absolute;
+            bottom: -0.25rem;
+            right: 0;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #9ca3af;
+        }
+
+        .sweep-point {
+            position: absolute;
+            bottom: 30px; /* Aligned with chart axis */
+            width: 10px;
+            height: 10px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 20;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+            display: none;
+        }
+
+        /* Action & FAQ */
+        .action-area {
+            text-align: center;
+            padding: 1rem 0;
+        }
+
+        .sweep-btn {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            padding: 0.85rem 2.5rem;
+            border-radius: 8px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .sweep-btn:hover { background-color: #059669; transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .sweep-btn:active { transform: translateY(0); }
+
+        .btn-desc { font-size: 0.9rem; color: #6b7280; margin-top: 0.75rem; }
+
+        .explanation-section {
+            margin-top: 4rem;
+            padding-top: 3rem;
+            border-top: 2px dashed #f3f4f6;
+        }
+
+        .explanation-section h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #111827;
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .explanation-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .explanation-card {
+            background: #fff;
+            padding: 1.75rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        
+        .explanation-card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+        .explanation-card h4 { margin: 0 0 1rem 0; font-size: 1.1rem; color: #374151; }
+        .explanation-card p { margin: 0; color: #6b7280; font-size: 0.9rem; line-height: 1.7; }
+
+        code { background: #f3f4f6; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="app-container">
+            <header class="app-header">
+                <h1>Uniswap V3 集中流动性可视化 (独立运行版)</h1>
+                <p class="app-description">
+                    Uniswap V3 允许流动性提供者 (LP) 将资金集中在特定的价格区间内（即“虚拟流动性”）。<br />
+                    在这个演示中，你可以通过滑动 <strong>k1 到 k6</strong> 的滑块，来调整不同价格区间内的资金深度。
+                </p>
+            </header>
+
+            <main class="app-main">
+                <div class="sliders-section">
+                    <div class="sliders-header">
+                        <div>
+                            <h3>调整各区间流动性深度 (k = L²)</h3>
+                            <p class="section-desc">滑块代表在特定价格区间内注入的资金量。数值越大，说明该区间的流动性越充足，价格曲线越平缓（即滑点越低）。</p>
+                        </div>
+                        <button id="v2SimBtn" class="v2-sim-btn">模拟 V2 连续流动性对比</button>
+                    </div>
+                    <div class="sliders-grid" id="slidersGrid"></div>
+                </div>
+
+                <div class="viz-section">
+                    <div class="viz-header">
+                        <div class="viz-title-col">
+                            <h3>资产储备曲线 (代币 Y vs 代币 X)</h3>
+                            <p class="section-desc">展示 <code>x * y = k</code> 在不同区间内的计算片段。断开的曲线段展示了分段虚拟储备的特性。红色射线代表当前价格点。</p>
+                        </div>
+                        <div class="viz-title-col">
+                            <h3>流动性深度分布 (柱状图)</h3>
+                            <p class="section-desc">横轴为价格，纵轴为流动性深度。这直观地展示了资金是如何“集中”在特定区间的。底部的红点追踪当前价格。</p>
+                        </div>
+                    </div>
+                    
+                    <div class="charts-container">
+                        <div class="chart-wrapper">
+                            <div class="canvas-container">
+                                <canvas id="scatterChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-wrapper">
+                            <div class="y-axis-label">↑ 流动性深度 (Liquidity)</div>
+                            <div class="canvas-container">
+                                <canvas id="barChart"></canvas>
+                                <div class="x-axis-label">→ 价格 (Price)</div>
+                                <div id="sweepPoint" class="sweep-point"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-area">
+                    <button id="sweepBtn" class="sweep-btn">▶ 模拟价格波动 (Sweep Price)</button>
+                    <p class="btn-desc">点击模拟市场活跃时的价格扫描轨迹</p>
+                </div>
+
+                <div class="explanation-section">
+                    <h2>如何理解这里的 K1 - K6 以及数值变化？</h2>
+                    <div class="explanation-grid">
+                        <div class="explanation-card">
+                            <h4>k1 - k6 分别代表什么？</h4>
+                            <p>整个价格范围从 0 到无穷大被切分成了连续的价格窗口。这里的 <code>k1</code> 到 <code>k6</code> 代表了我们截取的 6 个连续但独立的<strong>固定价格区间</strong>。</p>
+                        </div>
+                        <div class="explanation-card">
+                            <h4>滑块的值代表什么？</h4>
+                            <p>在数学模型中，滑块的值就是公式中的 k 值（更常表示为流动性深度 L<sup>2</sup>）。它代表了注入特定区间的<strong>真实资金总量</strong>。</p>
+                        </div>
+                        <div class="explanation-card">
+                            <h4>曲线变化的原因？</h4>
+                            <p>资金量 <code>k</code> 越大，代表该区间流动性越深。反映在左侧代币储备图表上，对应的曲线段会变得非常<strong>平缓且延展更长</strong>，意味着此路段交易的<strong>滑点极低</strong>。</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // --- Models & Data ---
+        let bins = [
+            { id: '1', minPrice: 0.125, maxPrice: 0.25, color: '#3ba0ff', k: 10 },
+            { id: '2', minPrice: 0.25, maxPrice: 0.5, color: '#ff5c8a', k: 10 },
+            { id: '3', minPrice: 0.5, maxPrice: 1, color: '#38c99e', k: 14 },
+            { id: '4', minPrice: 1, maxPrice: 2, color: '#f3c74c', k: 12 },
+            { id: '5', minPrice: 2, maxPrice: 4, color: '#ab72ff', k: 13 },
+            { id: '6', minPrice: 4, maxPrice: 8, color: '#ff994d', k: 11 },
+        ];
+
+        let isV2Mode = false;
+        let savedV3Bins = null;
+        let sweepProgress = null;
+        let animationFrameId = null;
+
+        // --- Math Logic: Corrected to match React version ---
+        function generateDisjointCurves(bins) {
+            return bins.map(bin => {
+                const k = Math.max(0.001, bin.k);
+                const minP = bin.minPrice;
+                const maxP = bin.maxPrice;
+                
+                // P = k/x^2 => x = sqrt(k/P)
+                const maxX = Math.sqrt(k / minP);
+                const minX = Math.sqrt(k / maxP);
+                
+                const data = [];
+                const steps = 40;
+                const step = (maxX - minX) / steps;
+                
+                for (let i = 0; i <= steps; i++) {
+                    const x = minX + i * step;
+                    const y = k / x;
+                    data.push({ x, y });
+                }
+                
+                return { binId: bin.id, color: bin.color, data };
+            });
+        }
+
+        function getPointAtPrice(bins, p) {
+            const activeBin = bins.find(b => p >= b.minPrice && p <= b.maxPrice);
+            if (!activeBin) return null;
+            if (activeBin.k === 0) return null;
+            return {
+                x: Math.sqrt(activeBin.k / p),
+                y: Math.sqrt(activeBin.k * p)
+            };
+        }
+
+        // --- Chart Handling ---
+        let scatterChartInstance = null;
+        let barChartInstance = null;
+
+        function initCharts() {
+            const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+            scatterChartInstance = new Chart(scatterCtx, {
+                type: 'scatter',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: { type: 'linear', min: 0, max: 10, grid: { color: '#f3f4f6' }, ticks: { color: '#9ca3af' } },
+                        y: { type: 'linear', min: 0, max: 10, grid: { color: '#f3f4f6' }, ticks: { color: '#9ca3af' } }
+                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                }
+            });
+
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    layout: { padding: { bottom: 20, left: 10 } },
+                    scales: {
+                        x: { grid: { display: false, drawBorder: true, borderColor: '#000' }, ticks: { display: false } },
+                        y: { min: 0, max: 30, grid: { display: false, drawBorder: true, borderColor: '#000' }, ticks: { display: false } }
+                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                }
+            });
+        }
+
+        function updateCharts() {
+            const curves = generateDisjointCurves(bins);
+            const datasets = curves.map(curve => ({
+                data: curve.data,
+                borderColor: curve.color,
+                backgroundColor: curve.color,
+                showLine: true,
+                borderWidth: 2.5,
+                pointRadius: 0,
+                tension: 0
+            }));
+
+            if (sweepProgress !== null) {
+                const minP = bins[0].minPrice;
+                const maxP = bins[bins.length - 1].maxPrice;
+                const logMin = Math.log(minP);
+                const logMax = Math.log(maxP);
+                const currentLog = logMin + sweepProgress * (logMax - logMin);
+                const sweepPrice = Math.exp(currentLog);
+
+                const match = getPointAtPrice(bins, sweepPrice);
+                if (match && match.x <= 10 && match.y <= 10) {
+                    datasets.push({
+                        label: 'Tracking Line',
+                        data: [{ x: 0, y: 0 }, { x: match.x, y: match.y }],
+                        borderColor: '#ef4444',
+                        showLine: true,
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                    });
+                    datasets.push({
+                        label: 'Point',
+                        data: [{ x: match.x, y: match.y }],
+                        borderColor: '#ef4444',
+                        backgroundColor: '#ef4444',
+                        pointRadius: 4,
+                    });
+                }
+            }
+
+            scatterChartInstance.data.datasets = datasets;
+            scatterChartInstance.update();
+
+            barChartInstance.data.labels = bins.map((_, i) => i);
+            barChartInstance.data.datasets = [{
+                data: bins.map(b => b.k),
+                backgroundColor: bins.map(b => b.color),
+                barPercentage: 1.0,
+                categoryPercentage: 1.0
+            }];
+            barChartInstance.update();
+
+            const pEl = document.getElementById('sweepPoint');
+            if (sweepProgress !== null) {
+                pEl.style.display = 'block';
+                pEl.style.left = `calc(30px + ${sweepProgress} * (100% - 30px))`;
+            } else {
+                pEl.style.display = 'none';
+            }
+        }
+
+        // --- UI ---
+        function renderSliders() {
+            const grid = document.getElementById('slidersGrid');
+            grid.innerHTML = '';
+            
+            let styleEl = document.getElementById('dynamic-styles');
+            if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'dynamic-styles'; document.head.appendChild(styleEl); }
+            let styles = '';
+
+            bins.forEach((bin, i) => {
+                const kIdx = i + 1;
+                const item = document.createElement('div');
+                item.className = 'slider-item';
+                item.innerHTML = `
+                    <div class="slider-info">
+                        <div class="slider-name">
+                            <div class="color-dot" style="background-color: ${bin.color}"></div>
+                            区间 K${kIdx}
+                        </div>
+                        <span class="slider-value" id="val-${bin.id}">${bin.k}</span>
+                    </div>
+                    <div class="slider-control">
+                        <input type="range" class="slider-input k-range-${bin.id}" data-id="${bin.id}" min="2" max="30" step="0.5" value="${bin.k}">
+                    </div>
+                `;
+                grid.appendChild(item);
+                styles += `.k-range-${bin.id} { color: ${bin.color}; } .k-range-${bin.id}::-webkit-slider-thumb { border-color: ${bin.color}; }`;
+            });
+            styleEl.innerHTML = styles;
+
+            grid.querySelectorAll('input').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const id = e.target.dataset.id;
+                    const val = parseFloat(e.target.value);
+                    if (isV2Mode) { isV2Mode = false; updateV2Btn(); }
+                    const b = bins.find(x => x.id === id);
+                    if (b) b.k = val;
+                    document.getElementById(`val-${id}`).innerText = val;
+                    updateCharts();
+                });
+            });
+        }
+
+        function updateV2Btn() {
+            const btn = document.getElementById('v2SimBtn');
+            btn.className = isV2Mode ? 'v2-sim-btn v2-active' : 'v2-sim-btn';
+            btn.innerText = isV2Mode ? '恢复 V3 集中流动性' : '模拟 V2 连续流动性对比';
+        }
+
+        document.getElementById('v2SimBtn').addEventListener('click', () => {
+            if (isV2Mode) {
+                isV2Mode = false;
+                if (savedV3Bins) bins = JSON.parse(JSON.stringify(savedV3Bins));
+            } else {
+                savedV3Bins = JSON.parse(JSON.stringify(bins));
+                isV2Mode = true;
+                bins.forEach(b => b.k = 30);
+            }
+            updateV2Btn();
+            renderSliders();
+            updateCharts();
+        });
+
+        document.getElementById('sweepBtn').addEventListener('click', () => {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            const start = performance.now();
+            const dur = 5000;
+            const step = (now) => {
+                let p = (now - start) / dur;
+                if (p > 1) p = 1;
+                sweepProgress = p;
+                updateCharts();
+                if (p < 1) animationFrameId = requestAnimationFrame(step);
+                else setTimeout(() => { sweepProgress = null; updateCharts(); }, 1500);
+            };
+            animationFrameId = requestAnimationFrame(step);
+        });
+
+        initCharts();
+        renderSliders();
+        updateCharts();
+    </script>
+</body>
+</html>
