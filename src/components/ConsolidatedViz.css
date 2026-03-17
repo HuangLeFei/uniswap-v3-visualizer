@@ -1,0 +1,61 @@
+.viz-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .viz-container {
+    flex-direction: row;
+  }
+}
+
+.chart-wrapper {
+  flex: 1;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.right-chart {
+  position: relative;
+}
+
+.y-axis-label {
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  font-size: 14px;
+  color: #000;
+  z-index: 10;
+}
+
+.canvas-container {
+  flex: 1;
+  min-height: 400px;
+  position: relative;
+  width: 100%;
+}
+
+.x-axis-label {
+  position: absolute;
+  right: -25px;
+  bottom: 10px;
+  font-size: 14px;
+  color: #000;
+}
+
+/* Sweep Point on Bar Chart X-Axis */
+.sweep-point {
+  position: absolute;
+  bottom: 16px; /* Offset to center the dot on the 20px padding boundary */
+  width: 8px;
+  height: 8px;
+  background-color: #ff0000;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 10;
+}
